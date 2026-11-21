@@ -228,7 +228,7 @@ internal sealed class KeyboardMonitor : IDisposable
         return true;
     }
 
-    private void SendCorrection(string original, string corrected, int boundaryKey)
+    private async void SendCorrection(string original, string corrected, int boundaryKey)
     {
         if (_injecting) return;
 
@@ -257,11 +257,15 @@ internal sealed class KeyboardMonitor : IDisposable
                 return;
             }
 
+            // SendInput queues keyboard events for the target thread. Do not request
+            // a layout change until the target has had time to consume the Unicode text.
+            await Task.Delay(150);
+
             bool russian = corrected.Any(ch => ch >= 0x0400 && ch <= 0x04FF);
             bool layoutChanged = LayoutSwitcher.SetForegroundLanguage(russian);
             _status(layoutChanged
-                ? $"Исправлено: {original} → {corrected}. Раскладка переключена."
-                : $"Текст исправлен: {original} → {corrected}, но Windows не подтвердила смену раскладки.");
+                ? $"Отправлено исправление: {original} → {corrected}. Раскладка переключена."
+                : $"Отправлено исправление: {original} → {corrected}, но Windows не подтвердила смену раскладки.");
         }
         catch (Exception ex)
         {
