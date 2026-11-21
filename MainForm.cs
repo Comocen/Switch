@@ -90,6 +90,7 @@ internal sealed class KeyboardMonitor : IDisposable
     private bool _pauseDown;
     private readonly HashSet<int> _suppressedKeyUps = new();
     private IntPtr _lastForegroundWindow;
+    private IntPtr _lastKeyboardLayout;
     public bool Enabled { get; set; } = true;
 
     public KeyboardMonitor(string dataDirectory, Action<Action> schedule, Action<string> status)
@@ -201,6 +202,7 @@ internal sealed class KeyboardMonitor : IDisposable
         }
 
         layout = GetKeyboardLayout(threadId);
+        _lastKeyboardLayout = layout;
         if (layout == IntPtr.Zero) return '\0';
 
         var buffer = new StringBuilder(8);
