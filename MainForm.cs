@@ -69,10 +69,8 @@ internal sealed class KeyboardMonitor : IDisposable
     private readonly LowLevelKeyboardProc _proc;
     private IntPtr _hook;
     private bool _shift;
-    private bool _caps;
     private bool _injecting;
     private bool _pauseDown;
-    private bool _capsDown;
     private IntPtr _lastForegroundWindow;
     public bool Enabled { get; set; } = true;
 
@@ -118,7 +116,6 @@ internal sealed class KeyboardMonitor : IDisposable
                     return new IntPtr(1);
                 }
                 if (vk == 0x10 || vk == 0xA0 || vk == 0xA1) _shift = true;
-                else if (vk == 0x14 && !_capsDown) { _caps = !_caps; _capsDown = true; }
                 else if (vk == 0x08) { if (_word.Length > 0) _word.Length--; }
                 else if (IsBoundary(vk))
                 {
@@ -135,7 +132,6 @@ internal sealed class KeyboardMonitor : IDisposable
             else if (message == WmKeyUp)
             {
                 if (vk == 0x13) { _pauseDown = false; return new IntPtr(1); }
-                if (vk == 0x14) _capsDown = false;
                 if (vk == 0x10 || vk == 0xA0 || vk == 0xA1) _shift = false;
             }
         }
@@ -148,7 +144,6 @@ internal sealed class KeyboardMonitor : IDisposable
         var state = new byte[256];
         if (!GetKeyboardState(state)) return '\0';
         state[0x10] = (byte)(_shift ? 0x80 : 0);
-        state[0x14] = (byte)(_caps ? 1 : 0);
 
         IntPtr foreground = GetForegroundWindow();
         uint threadId = foreground == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foreground, out _);
