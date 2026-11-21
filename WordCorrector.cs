@@ -32,7 +32,7 @@ internal sealed class WordCorrector
     private static string ConvertLayout(string input, bool toRussian)
     {
         const string en = "`qwertyuiop[]asdfghjkl;'zxcvbnm,./~QWERTYUIOP{}ASDFGHJKL:\"ZXCVBNM<>?";
-        const string ru = "ёйцукенгшщзхъ\\фывапролджэячсмитьбю.ЁЙЦУКЕНГШЩЗХЪ/ФЫВАПРОЛДЖЭЯЧСМИТЬБЮ,";
+        const string ru = "ёйцукенгшщзхъфывапролджэячсмитьбю.ЁЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮ,";
         var from = toRussian ? en : ru;
         var to = toRussian ? ru : en;
         var result = new StringBuilder(input.Length);
