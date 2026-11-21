@@ -16,8 +16,18 @@ internal static class LayoutSwitcher
         uint threadId = GetWindowThreadProcessId(window, out _);
         IntPtr current = GetKeyboardLayout(threadId);
         ushort language = unchecked((ushort)((long)current & 0xFFFF));
+        return SetForegroundLanguage(language != 0x0419);
+    }
 
-        string target = language == 0x0419 ? "00000409" : "00000419";
+    public static bool SetForegroundLanguage(bool russian)
+    {
+        IntPtr window = GetForegroundWindow();
+        if (window == IntPtr.Zero) return false;
+
+        uint threadId = GetWindowThreadProcessId(window, out _);
+        if (threadId == 0) return false;
+
+        string target = russian ? "00000419" : "00000409";
         IntPtr layout = LoadKeyboardLayout(target, KlfActivate | KlfSubstituteOk);
         if (layout == IntPtr.Zero) return false;
 
