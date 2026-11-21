@@ -4,7 +4,7 @@ A small Windows tray utility inspired by Punto Switcher. It detects a mistyped w
 
 ## Features
 - Global low-level keyboard monitoring (Windows).
-- Automatic English/Russian keyboard-layout typo correction.
+- Automatic English/Russian mistyped-word correction at word boundaries.
 - Case preservation for ALL-CAPS and Title Case words.
 - Editable word lists in `%APPDATA%\\PuntoSwitch\\ru.txt` and `en.txt`.
 - System tray menu and optional Windows startup.
@@ -24,7 +24,7 @@ The executable is produced under `bin/Release/net8.0-windows/win-x64/publish/`.
 Launch `PuntoSwitch.exe`. It starts monitoring immediately and stays in the notification area. Right-click the tray icon to open settings, toggle correction, or exit. Add words to the two dictionary files to improve recognition; each word must be on its own line.
 
 ## Notes and limitations
-This is an initial community-sized implementation, not a drop-in replacement for every Punto Switcher feature. Correction is dictionary-based: a candidate is changed only when exactly one converted form is found. Add domain-specific words to avoid unwanted corrections. The keyboard hook runs locally and does not transmit keystrokes. The utility does not store typed text.
+This is an early prototype, not a drop-in replacement for Punto Switcher. It replaces a mistyped word when exactly one converted candidate exists in the built-in or user dictionary; it does not yet change the active Windows layout, provide manual hotkeys, or include a full settings editor. The low-level keyboard hook runs locally and the utility does not transmit or persist typed text. Review and test it before relying on it for important work.
 
 ## License
 MIT
