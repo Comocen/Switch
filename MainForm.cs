@@ -63,6 +63,7 @@ internal sealed class KeyboardMonitor : IDisposable
 {
     private const int WhKeyboardLl = 13, WmKeyDown = 0x0100, WmSysKeyDown = 0x0104, WmKeyUp = 0x0101;
     private const uint KeyeventfKeyup = 0x0002, KeyeventfUnicode = 0x0004;
+    private const uint LlkhfInjected = 0x00000010;
     private readonly WordCorrector _corrector;
     private readonly Action<string> _status;
     private readonly StringBuilder _word = new();
@@ -90,10 +91,15 @@ internal sealed class KeyboardMonitor : IDisposable
 
     private IntPtr HookCallback(int code, IntPtr wParam, IntPtr lParam)
     {
-        if (code >= 0 && !_injecting)
+        if (code >= 0)
         {
-            int message = wParam.ToInt32();
             var data = Marshal.PtrToStructure<KbdLlHookStruct>(lParam);
+            // Не обрабатываем события, созданные самим Switch или другими программами.
+            // Иначе вставленный текст может повторно попасть в буфер набираемого слова.
+            if (_injecting || (data.Flags & LlkhfInjected) != 0)
+                return CallNextHookEx(_hook, code, wParam, lParam);
+
+            int message = wParam.ToInt32();
             int vk = (int)data.VkCode;
             if (message == WmKeyDown || message == WmSysKeyDown)
             {
@@ -174,8 +180,14 @@ internal sealed class KeyboardMonitor : IDisposable
                 inputs.Add(UnicodeInput(c, false));
                 inputs.Add(UnicodeInput(c, true));
             }
-            SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<Input>());
-            _status($"Исправлено: {original} → {replacement}");
+            uint sent = SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<Input>());
+            if (sent != inputs.Count)
+            {
+                int error = Marshal.GetLastWin32Error();
+                _status($"Не удалось заменить текст в активном поле ввода (отправлено {sent} из {inputs.Count}, Win32: {error}). Возможно, целевая программа запущена от администратора.");
+                return;
+            }
+            _status($"Исправлено в активном поле: {original} → {replacement}");
         }
         finally { _injecting = false; }
     }
