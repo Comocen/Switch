@@ -71,6 +71,7 @@ internal sealed class KeyboardMonitor : IDisposable
     private bool _shift;
     private bool _caps;
     private bool _injecting;
+    private bool _pauseDown;
     public bool Enabled { get; set; } = true;
 
     public KeyboardMonitor(string dataDirectory, Action<string> status)
@@ -96,6 +97,14 @@ internal sealed class KeyboardMonitor : IDisposable
             int vk = (int)data.VkCode;
             if (message == WmKeyDown || message == WmSysKeyDown)
             {
+                if (vk == 0x13 && !_pauseDown)
+                {
+                    _pauseDown = true;
+                    _status(LayoutSwitcher.ToggleForForegroundWindow()
+                        ? "Раскладка переключена."
+                        : "Не удалось переключить раскладку. Проверьте установленные языки Windows.");
+                    return new IntPtr(1);
+                }
                 if (vk == 0x10 || vk == 0xA0 || vk == 0xA1) _shift = true;
                 else if (vk == 0x14) _caps = !_caps;
                 else if (vk == 0x08) { if (_word.Length > 0) _word.Length--; }
@@ -111,7 +120,11 @@ internal sealed class KeyboardMonitor : IDisposable
                     else if (_word.Length > 0 && vk != 0x11 && vk != 0x12) _word.Clear();
                 }
             }
-            else if (message == WmKeyUp && (vk == 0x10 || vk == 0xA0 || vk == 0xA1)) _shift = false;
+            else if (message == WmKeyUp)
+            {
+                if (vk == 0x13) _pauseDown = false;
+                if (vk == 0x10 || vk == 0xA0 || vk == 0xA1) _shift = false;
+            }
         }
         return CallNextHookEx(_hook, code, wParam, lParam);
     }
