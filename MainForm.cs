@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace PuntoSwitch;
+namespace Switch;
 
 internal sealed class MainForm : Form
 {
@@ -11,11 +11,11 @@ internal sealed class MainForm : Form
     private readonly Label _status;
     private readonly CheckBox _autoStart;
     private readonly string _dataDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PuntoSwitch");
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Switch");
 
     public MainForm()
     {
-        Text = "PuntoSwitch";
+        Text = "Switch";
         Width = 430;
         Height = 220;
         StartPosition = FormStartPosition.CenterScreen;
@@ -39,7 +39,7 @@ internal sealed class MainForm : Form
         menu.Items.Add("Открыть настройки", null, (_, _) => ShowWindow());
         menu.Items.Add("Включить / выключить", null, (_, _) => ToggleCorrection());
         menu.Items.Add("Выход", null, (_, _) => ExitApplication());
-        _tray = new NotifyIcon { Text = "PuntoSwitch", Icon = SystemIcons.Application, ContextMenuStrip = menu, Visible = true };
+        _tray = new NotifyIcon { Text = "Switch", Icon = SystemIcons.Application, ContextMenuStrip = menu, Visible = true };
         _tray.DoubleClick += (_, _) => ShowWindow();
 
         _monitor = new KeyboardMonitor(_dataDirectory, message => BeginInvoke(new Action(() => _status.Text = message)));
@@ -176,7 +176,7 @@ internal sealed class KeyboardMonitor : IDisposable
 internal static class StartupManager
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string AppName = "PuntoSwitch";
+    private const string AppName = "Switch";
     public static bool IsEnabled()
     {
         using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey);
