@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace PuntoSwitch;
+namespace Switch;
 
 internal sealed class WordCorrector
 {
