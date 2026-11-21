@@ -97,12 +97,15 @@ internal sealed class KeyboardMonitor : IDisposable
             int vk = (int)data.VkCode;
             if (message == WmKeyDown || message == WmSysKeyDown)
             {
-                if (vk == 0x13 && !_pauseDown)
+                if (vk == 0x13)
                 {
-                    _pauseDown = true;
-                    _status(LayoutSwitcher.ToggleForForegroundWindow()
-                        ? "Раскладка переключена."
-                        : "Не удалось переключить раскладку. Проверьте установленные языки Windows.");
+                    if (!_pauseDown)
+                    {
+                        _pauseDown = true;
+                        _status(LayoutSwitcher.ToggleForForegroundWindow()
+                            ? "Раскладка переключена."
+                            : "Не удалось переключить раскладку. Проверьте установленные языки Windows.");
+                    }
                     return new IntPtr(1);
                 }
                 if (vk == 0x10 || vk == 0xA0 || vk == 0xA1) _shift = true;
@@ -122,7 +125,7 @@ internal sealed class KeyboardMonitor : IDisposable
             }
             else if (message == WmKeyUp)
             {
-                if (vk == 0x13) _pauseDown = false;
+                if (vk == 0x13) { _pauseDown = false; return new IntPtr(1); }
                 if (vk == 0x10 || vk == 0xA0 || vk == 0xA1) _shift = false;
             }
         }
