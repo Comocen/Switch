@@ -126,19 +126,31 @@ internal sealed class KeyboardMonitor : IDisposable
                 else if (vk == 0x08) { if (_word.Length > 0) _word.Length--; }
                 else if (IsBoundary(vk))
                 {
-                    if (Enabled && CorrectCurrentWord(vk))
+                    if (Enabled && _word.Length > 0)
                     {
-                        _word.Clear();
-                        _suppressedKeyUps.Add(vk);
-                        return new IntPtr(1);
+                        _status($"Слово собрано: {_word}. Проверяю словарь…");
+                        if (CorrectCurrentWord(vk))
+                        {
+                            _word.Clear();
+                            _suppressedKeyUps.Add(vk);
+                            return new IntPtr(1);
+                        }
                     }
                     _word.Clear();
                 }
                 else if (Enabled)
                 {
-                    char c = GetTypedCharacter(vk, data.ScanCode);
-                    if (char.IsLetter(c) || c is '\'' or '-') _word.Append(c);
-                    else if (_word.Length > 0 && vk != 0x11 && vk != 0x12) _word.Clear();
+                    char typed = GetTypedCharacter(vk, data.ScanCode);
+                    if (char.IsLetter(typed) || typed is '\'' or '-')
+                    {
+                        _word.Append(typed);
+                        _status($"Перехват клавиш работает. Набрано: {_word}");
+                    }
+                    else if (_word.Length > 0 && vk != 0x11 && vk != 0x12)
+                    {
+                        _status($"Клавиша получена, но символ не распознан (VK={vk}, scan={data.ScanCode}). Буфер очищен.");
+                        _word.Clear();
+                    }
                 }
             }
             else if (message == WmKeyUp)
