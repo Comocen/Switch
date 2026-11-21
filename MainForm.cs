@@ -42,7 +42,7 @@ internal sealed class MainForm : Form
         _tray = new NotifyIcon { Text = "PuntoSwitch", Icon = SystemIcons.Application, ContextMenuStrip = menu, Visible = true };
         _tray.DoubleClick += (_, _) => ShowWindow();
 
-        _monitor = new KeyboardMonitor(_dataDirectory, message => BeginInvoke(() => _status.Text = message));
+        _monitor = new KeyboardMonitor(_dataDirectory, message => BeginInvoke(new Action(() => _status.Text = message)));
         _monitor.Start();
         FormClosing += (_, e) => { if (!_exiting) { e.Cancel = true; HideToTray(); } };
     }
@@ -137,17 +137,23 @@ internal sealed class KeyboardMonitor : IDisposable
         try
         {
             var inputs = new List<Input>();
-            for (int i = 0; i < original.Length; i++) inputs.Add(KeyInput(0x08));
-            foreach (char c in replacement) inputs.Add(UnicodeInput(c, false));
-            inputs.Add(UnicodeInput('\0', true)); // harmless key-up placeholder is filtered below
-            inputs.RemoveAt(inputs.Count - 1);
+            for (int i = 0; i < original.Length; i++)
+            {
+                inputs.Add(KeyInput(0x08, false));
+                inputs.Add(KeyInput(0x08, true));
+            }
+            foreach (char c in replacement)
+            {
+                inputs.Add(UnicodeInput(c, false));
+                inputs.Add(UnicodeInput(c, true));
+            }
             SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<Input>());
             _status($"Исправлено: {original} → {replacement}");
         }
         finally { _injecting = false; }
     }
 
-    private static Input KeyInput(ushort key) => new() { Type = 1, U = new InputUnion { Ki = new KeyboardInput { WVk = key } } };
+    private static Input KeyInput(ushort key, bool keyUp) => new() { Type = 1, U = new InputUnion { Ki = new KeyboardInput { WVk = key, DwFlags = keyUp ? KeyeventfKeyup : 0 } } };
     private static Input UnicodeInput(char c, bool keyUp) => new() { Type = 1, U = new InputUnion { Ki = new KeyboardInput { WScan = c, DwFlags = KeyeventfUnicode | (keyUp ? KeyeventfKeyup : 0) } } };
 
     public void Dispose() { if (_hook != IntPtr.Zero) { UnhookWindowsHookEx(_hook); _hook = IntPtr.Zero; } }
