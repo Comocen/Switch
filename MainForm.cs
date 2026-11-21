@@ -181,15 +181,26 @@ internal sealed class KeyboardMonitor : IDisposable
     }
 
     private static bool IsBoundary(int vk) => vk is 0x20 or 0x0D or 0x09 or 0xBE or 0xBC or 0xBF or 0xBA or 0x6E;
-    private char GetTypedCharacter(int vk, uint scanCode)
+    private char GetTypedCharacter(int vk, uint scanCode, out IntPtr layout)
     {
+        layout = IntPtr.Zero;
         var state = new byte[256];
         if (!GetKeyboardState(state)) return '\0';
         state[0x10] = (byte)(_shift ? 0x80 : 0);
 
         IntPtr foreground = GetForegroundWindow();
         uint threadId = foreground == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foreground, out _);
-        IntPtr layout = threadId == 0 ? IntPtr.Zero : GetKeyboardLayout(threadId);
+        if (threadId == 0) return '\0';
+
+        // Prefer the thread that owns the focused control, not only the top-level window.
+        var guiInfo = new GuiThreadInfo { CbSize = (uint)Marshal.SizeOf<GuiThreadInfo>() };
+        if (GetGUIThreadInfo(threadId, ref guiInfo) && guiInfo.HwndFocus != IntPtr.Zero)
+        {
+            uint focusThreadId = GetWindowThreadProcessId(guiInfo.HwndFocus, out _);
+            if (focusThreadId != 0) threadId = focusThreadId;
+        }
+
+        layout = GetKeyboardLayout(threadId);
         if (layout == IntPtr.Zero) return '\0';
 
         var buffer = new StringBuilder(8);
@@ -273,6 +284,12 @@ internal sealed class KeyboardMonitor : IDisposable
         public IntPtr HwndActive, HwndFocus, HwndCapture, HwndMenuOwner, HwndMoveSize, HwndCaret;
         public int Left, Top, Right, Bottom;
     }
+    [StructLayout(LayoutKind.Sequential)] private struct GuiThreadInfo
+    {
+        public uint CbSize, Flags;
+        public IntPtr HwndActive, HwndFocus, HwndCapture, HwndMenuOwner, HwndMoveSize, HwndCaret;
+        public int Left, Top, Right, Bottom;
+    }
     [StructLayout(LayoutKind.Sequential)] private struct KeyboardInput { public ushort WVk, WScan; public uint DwFlags, Time; public UIntPtr DwExtraInfo; }
     // INPUT is a union. MOUSEINPUT is 32 bytes on x64, so the union must
     // be large enough even when this utility only sends keyboard events.
@@ -291,6 +308,7 @@ internal sealed class KeyboardMonitor : IDisposable
     [DllImport("user32.dll")] private static extern bool GetKeyboardState(byte[] state);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+    [DllImport("user32.dll", SetLastError = true)] private static extern bool GetGUIThreadInfo(uint threadId, ref GuiThreadInfo info);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool GetGUIThreadInfo(uint threadId, ref GuiThreadInfo info);
     [DllImport("user32.dll")] private static extern IntPtr GetKeyboardLayout(uint threadId);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int ToUnicodeEx(uint vk, uint scan, byte[] state, [Out] StringBuilder buffer, int size, uint flags, IntPtr layout);
