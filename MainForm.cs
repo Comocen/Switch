@@ -200,7 +200,14 @@ internal sealed class KeyboardMonitor : IDisposable
     private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
     [StructLayout(LayoutKind.Sequential)] private struct KbdLlHookStruct { public uint VkCode, ScanCode, Flags, Time; public UIntPtr ExtraInfo; }
     [StructLayout(LayoutKind.Sequential)] private struct KeyboardInput { public ushort WVk, WScan; public uint DwFlags, Time; public UIntPtr DwExtraInfo; }
-    [StructLayout(LayoutKind.Sequential)] private struct InputUnion { public KeyboardInput Ki; }
+    // INPUT is a union. MOUSEINPUT is 32 bytes on x64, so the union must
+    // be large enough even when this utility only sends keyboard events.
+    [StructLayout(LayoutKind.Sequential)] private struct MouseInput { public int Dx, Dy; public uint MouseData, DwFlags, Time; public UIntPtr DwExtraInfo; }
+    [StructLayout(LayoutKind.Explicit)] private struct InputUnion
+    {
+        [FieldOffset(0)] public KeyboardInput Ki;
+        [FieldOffset(0)] public MouseInput Mi;
+    }
     [StructLayout(LayoutKind.Sequential)] private struct Input { public uint Type; public InputUnion U; }
 
     [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc callback, IntPtr hMod, uint threadId);
