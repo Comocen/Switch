@@ -54,7 +54,10 @@ internal sealed class MainForm : Form
         _tray = new NotifyIcon { Text = "Switch", Icon = SystemIcons.Application, ContextMenuStrip = menu, Visible = true };
         _tray.DoubleClick += (_, _) => ShowWindow();
 
-        _monitor = new KeyboardMonitor(_dataDirectory, message => BeginInvoke(new Action(() => _status.Text = message)));
+        _monitor = new KeyboardMonitor(
+            _dataDirectory,
+            action => BeginInvoke(action),
+            message => BeginInvoke(new Action(() => _status.Text = message)));
         _monitor.Start();
         FormClosing += (_, e) => { if (!_exiting) { e.Cancel = true; HideToTray(); } };
     }
@@ -78,6 +81,7 @@ internal sealed class KeyboardMonitor : IDisposable
     private const uint LlkhfInjected = 0x00000010;
     private readonly WordCorrector _corrector;
     private readonly Action<string> _status;
+    private readonly Action<Action> _schedule;
     private readonly StringBuilder _word = new();
     private readonly LowLevelKeyboardProc _proc;
     private IntPtr _hook;
@@ -88,9 +92,10 @@ internal sealed class KeyboardMonitor : IDisposable
     private IntPtr _lastForegroundWindow;
     public bool Enabled { get; set; } = true;
 
-    public KeyboardMonitor(string dataDirectory, Action<string> status)
+    public KeyboardMonitor(string dataDirectory, Action<Action> schedule, Action<string> status)
     {
         _corrector = new WordCorrector(dataDirectory);
+        _schedule = schedule;
         _status = status;
         _proc = HookCallback;
     }
@@ -195,14 +200,25 @@ internal sealed class KeyboardMonitor : IDisposable
     private bool CorrectCurrentWord(int boundaryKey)
     {
         string original = _word.ToString();
-        string? replacement = _corrector.TryCorrect(original);
-        if (replacement is null || replacement == original)
+        string? corrected = _corrector.TryCorrect(original);
+        if (corrected is null || corrected == original)
         {
             _status(_corrector.ExplainAttempt(original));
             return false;
         }
 
-        // Replace the word and replay its delimiter as one ordered input batch.
+        // Run SendInput only after the low-level hook callback has returned.
+        // Calling SendInput from inside WH_KEYBOARD_LL can interfere with delivery
+        // of the injected events to the foreground application.
+        _status($"Найдено исправление: {original} → {corrected}. Выполняю замену…");
+        _schedule(() => SendCorrection(original, corrected, boundaryKey));
+        return true;
+    }
+
+    private void SendCorrection(string original, string corrected, int boundaryKey)
+    {
+        if (_injecting) return;
+
         _injecting = true;
         try
         {
@@ -212,7 +228,7 @@ internal sealed class KeyboardMonitor : IDisposable
                 inputs.Add(KeyInput(0x08, false));
                 inputs.Add(KeyInput(0x08, true));
             }
-            foreach (char c in replacement)
+            foreach (char c in corrected)
             {
                 inputs.Add(UnicodeInput(c, false));
                 inputs.Add(UnicodeInput(c, true));
@@ -224,18 +240,24 @@ internal sealed class KeyboardMonitor : IDisposable
             if (sent != inputs.Count)
             {
                 int error = Marshal.GetLastWin32Error();
-                _status($"Windows приняла только {sent} из {inputs.Count} событий ввода (ошибка {error}).");
-                return false;
+                _status($"Ошибка SendInput: отправлено {sent} из {inputs.Count} событий (код {error}). Исходное слово могло быть частично удалено.");
+                return;
             }
 
-            bool russian = replacement.Any(c => c >= 0x0400 && c <= 0x04FF);
+            bool russian = corrected.Any(ch => ch >= 0x0400 && ch <= 0x04FF);
             bool layoutChanged = LayoutSwitcher.SetForegroundLanguage(russian);
             _status(layoutChanged
-                ? $"Исправлено: {original} → {replacement}. Раскладка переключена."
-                : $"Текст исправлен: {original} → {replacement}, но Windows не подтвердила смену раскладки.");
-            return true;
+                ? $"Исправлено: {original} → {corrected}. Раскладка переключена."
+                : $"Текст исправлен: {original} → {corrected}, но Windows не подтвердила смену раскладки.");
         }
-        finally { _injecting = false; }
+        catch (Exception ex)
+        {
+            _status($"Ошибка при замене «{original}»: {ex.Message}");
+        }
+        finally
+        {
+            _injecting = false;
+        }
     }
 
     private static Input KeyInput(ushort key, bool keyUp) => new() { Type = 1, U = new InputUnion { Ki = new KeyboardInput { WVk = key, DwFlags = keyUp ? KeyeventfKeyup : 0 } } };
