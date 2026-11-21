@@ -1,15 +1,40 @@
 name: Build
+
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+
 jobs:
   build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: dotnet build Switch.csproj --configuration Release
+
+      - name: Build
+        run: dotnet build Switch.csproj --configuration Release
+
+      - name: Publish self-contained application
+        if: github.event_name == 'push'
+        run: dotnet publish Switch.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -o publish
+
+      - name: Install Inno Setup
+        if: github.event_name == 'push'
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build installer
+        if: github.event_name == 'push'
+        run: iscc installer/Switch.iss
+
+      - name: Upload installer
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Switch-Setup-x64
+          path: artifacts/Switch-Setup-x64.exe
+          if-no-files-found: error
