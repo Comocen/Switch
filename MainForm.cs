@@ -184,7 +184,11 @@ internal sealed class KeyboardMonitor : IDisposable
     {
         string original = _word.ToString();
         string? replacement = _corrector.TryCorrect(original);
-        if (replacement is null || replacement == original) return false;
+        if (replacement is null || replacement == original)
+        {
+            _status(_corrector.ExplainAttempt(original));
+            return false;
+        }
 
         // Replace the word and replay its delimiter as one ordered input batch.
         _injecting = true;
