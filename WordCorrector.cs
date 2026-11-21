@@ -29,6 +29,16 @@ internal sealed class WordCorrector
         return null;
     }
 
+    public string ExplainAttempt(string word)
+    {
+        var toRussian = ConvertLayout(word, toRussian: true);
+        var toEnglish = ConvertLayout(word, toRussian: false);
+        bool alreadyKnown = _ru.Contains(word) || _en.Contains(word);
+        bool ruFound = _ru.Contains(toRussian);
+        bool enFound = _en.Contains(toEnglish);
+        return $"Диагностика: «{word}»; RU-кандидат «{toRussian}» ({ruFound}); EN-кандидат «{toEnglish}» ({enFound}); исходное слово в словаре ({alreadyKnown}).";
+    }
+
     private static string ConvertLayout(string input, bool toRussian)
     {
         const string en = "`qwertyuiop[]asdfghjkl;'zxcvbnm,./~QWERTYUIOP{}ASDFGHJKL:\"ZXCVBNM<>?";
