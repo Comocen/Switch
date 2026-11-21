@@ -13,7 +13,6 @@ internal static class LayoutSwitcher
         IntPtr window = GetForegroundWindow();
         if (window == IntPtr.Zero) return false;
 
-        GetWindowThreadProcessId(window, out _);
         uint threadId = GetWindowThreadProcessId(window, out _);
         IntPtr current = GetKeyboardLayout(threadId);
         ushort language = unchecked((ushort)((long)current & 0xFFFF));
