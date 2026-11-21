@@ -1,4 +1,4 @@
-namespace PuntoSwitch;
+namespace Switch;
 
 internal static class Program
 {
