@@ -72,6 +72,8 @@ internal sealed class KeyboardMonitor : IDisposable
     private bool _caps;
     private bool _injecting;
     private bool _pauseDown;
+    private bool _capsDown;
+    private IntPtr _lastForegroundWindow;
     public bool Enabled { get; set; } = true;
 
     public KeyboardMonitor(string dataDirectory, Action<string> status)
@@ -97,6 +99,13 @@ internal sealed class KeyboardMonitor : IDisposable
             int vk = (int)data.VkCode;
             if (message == WmKeyDown || message == WmSysKeyDown)
             {
+                IntPtr foreground = GetForegroundWindow();
+                if (foreground != _lastForegroundWindow)
+                {
+                    _lastForegroundWindow = foreground;
+                    _word.Clear();
+                }
+
                 if (vk == 0x13)
                 {
                     if (!_pauseDown)
@@ -109,7 +118,7 @@ internal sealed class KeyboardMonitor : IDisposable
                     return new IntPtr(1);
                 }
                 if (vk == 0x10 || vk == 0xA0 || vk == 0xA1) _shift = true;
-                else if (vk == 0x14) _caps = !_caps;
+                else if (vk == 0x14 && !_capsDown) { _caps = !_caps; _capsDown = true; }
                 else if (vk == 0x08) { if (_word.Length > 0) _word.Length--; }
                 else if (IsBoundary(vk))
                 {
@@ -118,7 +127,7 @@ internal sealed class KeyboardMonitor : IDisposable
                 }
                 else if (Enabled)
                 {
-                    char c = GetTypedCharacter(vk);
+                    char c = GetTypedCharacter(vk, data.ScanCode);
                     if (char.IsLetter(c) || c is '\'' or '-') _word.Append(c);
                     else if (_word.Length > 0 && vk != 0x11 && vk != 0x12) _word.Clear();
                 }
@@ -126,6 +135,7 @@ internal sealed class KeyboardMonitor : IDisposable
             else if (message == WmKeyUp)
             {
                 if (vk == 0x13) { _pauseDown = false; return new IntPtr(1); }
+                if (vk == 0x14) _capsDown = false;
                 if (vk == 0x10 || vk == 0xA0 || vk == 0xA1) _shift = false;
             }
         }
@@ -133,14 +143,20 @@ internal sealed class KeyboardMonitor : IDisposable
     }
 
     private static bool IsBoundary(int vk) => vk is 0x20 or 0x0D or 0x09 or 0xBE or 0xBC or 0xBF or 0xBA or 0x6E;
-    private char GetTypedCharacter(int vk)
+    private char GetTypedCharacter(int vk, uint scanCode)
     {
         var state = new byte[256];
         if (!GetKeyboardState(state)) return '\0';
         state[0x10] = (byte)(_shift ? 0x80 : 0);
         state[0x14] = (byte)(_caps ? 1 : 0);
-        var buffer = new StringBuilder(4);
-        int count = ToUnicode((uint)vk, 0, state, buffer, buffer.Capacity, 0);
+
+        IntPtr foreground = GetForegroundWindow();
+        uint threadId = foreground == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foreground, out _);
+        IntPtr layout = threadId == 0 ? IntPtr.Zero : GetKeyboardLayout(threadId);
+        if (layout == IntPtr.Zero) return '\0';
+
+        var buffer = new StringBuilder(8);
+        int count = ToUnicodeEx((uint)vk, scanCode, state, buffer, buffer.Capacity, 0, layout);
         return count > 0 && buffer.Length > 0 ? buffer[0] : '\0';
     }
 
@@ -185,7 +201,10 @@ internal sealed class KeyboardMonitor : IDisposable
     [DllImport("user32.dll")] private static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr wParam, IntPtr lParam);
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)] private static extern IntPtr GetModuleHandle(string? name);
     [DllImport("user32.dll")] private static extern bool GetKeyboardState(byte[] state);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int ToUnicode(uint vk, uint scan, byte[] state, [Out] StringBuilder buffer, int size, uint flags);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+    [DllImport("user32.dll")] private static extern IntPtr GetKeyboardLayout(uint threadId);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int ToUnicodeEx(uint vk, uint scan, byte[] state, [Out] StringBuilder buffer, int size, uint flags, IntPtr layout);
     [DllImport("user32.dll", SetLastError = true)] private static extern uint SendInput(uint count, Input[] inputs, int size);
 }
 
