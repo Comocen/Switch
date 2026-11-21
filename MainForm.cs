@@ -286,12 +286,6 @@ internal sealed class KeyboardMonitor : IDisposable
         public IntPtr HwndActive, HwndFocus, HwndCapture, HwndMenuOwner, HwndMoveSize, HwndCaret;
         public int Left, Top, Right, Bottom;
     }
-    [StructLayout(LayoutKind.Sequential)] private struct GuiThreadInfo
-    {
-        public uint CbSize, Flags;
-        public IntPtr HwndActive, HwndFocus, HwndCapture, HwndMenuOwner, HwndMoveSize, HwndCaret;
-        public int Left, Top, Right, Bottom;
-    }
     [StructLayout(LayoutKind.Sequential)] private struct KeyboardInput { public ushort WVk, WScan; public uint DwFlags, Time; public UIntPtr DwExtraInfo; }
     // INPUT is a union. MOUSEINPUT is 32 bytes on x64, so the union must
     // be large enough even when this utility only sends keyboard events.
@@ -310,7 +304,6 @@ internal sealed class KeyboardMonitor : IDisposable
     [DllImport("user32.dll")] private static extern bool GetKeyboardState(byte[] state);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
-    [DllImport("user32.dll", SetLastError = true)] private static extern bool GetGUIThreadInfo(uint threadId, ref GuiThreadInfo info);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool GetGUIThreadInfo(uint threadId, ref GuiThreadInfo info);
     [DllImport("user32.dll")] private static extern IntPtr GetKeyboardLayout(uint threadId);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int ToUnicodeEx(uint vk, uint scan, byte[] state, [Out] StringBuilder buffer, int size, uint flags, IntPtr layout);
