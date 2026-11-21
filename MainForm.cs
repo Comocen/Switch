@@ -8,7 +8,7 @@ internal sealed class MainForm : Form
 {
     private readonly NotifyIcon _tray;
     private readonly KeyboardMonitor _monitor;
-    private readonly Label _status;
+    private readonly TextBox _status;
     private readonly CheckBox _autoStart;
     private readonly string _dataDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Switch");
@@ -26,7 +26,19 @@ internal sealed class MainForm : Form
         CopyDefaultDictionary("ru.txt", "# Добавляйте по одному русскому слову на строку.\n");
         CopyDefaultDictionary("en.txt", "# Add one English word per line.\n");
 
-        _status = new Label { Left = 20, Top = 20, Width = 370, Height = 42, Text = "Автопереключение включено." };
+        _status = new TextBox
+        {
+            Left = 20, Top = 20, Width = 370, Height = 48,
+            Text = "Автопереключение включено.",
+            Multiline = true, ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical,
+            WordWrap = true,
+            TabStop = true
+        };
+        var statusMenu = new ContextMenuStrip();
+        statusMenu.Items.Add("Копировать", null, (_, _) => _status.Copy());
+        statusMenu.Items.Add("Выделить всё", null, (_, _) => _status.SelectAll());
+        _status.ContextMenuStrip = statusMenu;
         _autoStart = new CheckBox { Left = 20, Top = 75, Width = 370, Text = "Запускать вместе с Windows", Checked = StartupManager.IsEnabled() };
         _autoStart.CheckedChanged += (_, _) => StartupManager.SetEnabled(_autoStart.Checked);
         var folder = new Button { Left = 20, Top = 112, Width = 180, Text = "Открыть словари" };
