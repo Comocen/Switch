@@ -72,6 +72,7 @@ internal sealed class KeyboardMonitor : IDisposable
     private bool _shift;
     private bool _injecting;
     private bool _pauseDown;
+    private readonly HashSet<int> _suppressedKeyUps = new();
     private IntPtr _lastForegroundWindow;
     public bool Enabled { get; set; } = true;
 
@@ -125,7 +126,12 @@ internal sealed class KeyboardMonitor : IDisposable
                 else if (vk == 0x08) { if (_word.Length > 0) _word.Length--; }
                 else if (IsBoundary(vk))
                 {
-                    if (Enabled) CorrectCurrentWord();
+                    if (Enabled && CorrectCurrentWord(vk))
+                    {
+                        _word.Clear();
+                        _suppressedKeyUps.Add(vk);
+                        return new IntPtr(1);
+                    }
                     _word.Clear();
                 }
                 else if (Enabled)
@@ -137,6 +143,7 @@ internal sealed class KeyboardMonitor : IDisposable
             }
             else if (message == WmKeyUp)
             {
+                if (_suppressedKeyUps.Remove(vk)) return new IntPtr(1);
                 if (vk == 0x13) { _pauseDown = false; return new IntPtr(1); }
                 if (vk == 0x10 || vk == 0xA0 || vk == 0xA1) _shift = false;
             }
@@ -161,11 +168,13 @@ internal sealed class KeyboardMonitor : IDisposable
         return count > 0 && buffer.Length > 0 ? buffer[0] : '\0';
     }
 
-    private void CorrectCurrentWord()
+    private bool CorrectCurrentWord(int boundaryKey)
     {
         string original = _word.ToString();
         string? replacement = _corrector.TryCorrect(original);
-        if (replacement is null || replacement == original) return;
+        if (replacement is null || replacement == original) return false;
+
+        // Replace the word and replay its delimiter as one ordered input batch.
         _injecting = true;
         try
         {
@@ -180,14 +189,23 @@ internal sealed class KeyboardMonitor : IDisposable
                 inputs.Add(UnicodeInput(c, false));
                 inputs.Add(UnicodeInput(c, true));
             }
+            inputs.Add(KeyInput((ushort)boundaryKey, false));
+            inputs.Add(KeyInput((ushort)boundaryKey, true));
+
             uint sent = SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<Input>());
             if (sent != inputs.Count)
             {
                 int error = Marshal.GetLastWin32Error();
-                _status($"Не удалось заменить текст в активном поле ввода (отправлено {sent} из {inputs.Count}, Win32: {error}). Возможно, целевая программа запущена от администратора.");
-                return;
+                _status($"Windows приняла только {sent} из {inputs.Count} событий ввода (ошибка {error}).");
+                return false;
             }
-            _status($"Исправлено в активном поле: {original} → {replacement}");
+
+            bool russian = replacement.Any(c => c >= 0x0400 && c <= 0x04FF);
+            bool layoutChanged = LayoutSwitcher.SetForegroundLanguage(russian);
+            _status(layoutChanged
+                ? $"Исправлено: {original} → {replacement}. Раскладка переключена."
+                : $"Текст исправлен: {original} → {replacement}, но Windows не подтвердила смену раскладки.");
+            return true;
         }
         finally { _injecting = false; }
     }
